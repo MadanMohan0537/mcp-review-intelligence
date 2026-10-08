@@ -1,0 +1,14 @@
+const $=id=>document.getElementById(id);let report=null;
+async function call(name,args={}){const r=await fetch('/api/call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,arguments:args})});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d;}
+async function action(fn){$('status').className='';$('status').textContent='Working…';try{await fn();$('status').textContent='Done. Evidence updated.';}catch(e){$('status').className='error';$('status').textContent=e.message;}}
+function show(d){report=d;$('result').textContent=JSON.stringify(d,null,2);}
+function filters(){const a={product:$('product').value};for(const k of ['from','to','source'])if($(k).value)a[k]=$(k).value;return a;}
+async function refresh(){const d=await call('list_products');const root=$('products');root.replaceChildren();for(const k of ['product','competitor'])$(k).replaceChildren();if(!d.products.length){root.textContent='No review samples yet.';return;}const t=document.createElement('table');const h=t.createTHead().insertRow();for(const label of ['Product','Reviews','Sources']){const th=document.createElement('th');th.textContent=label;h.append(th);}for(const p of d.products){const row=t.insertRow();for(const v of [p.product,p.review_count,p.source_count])row.insertCell().textContent=v;for(const k of ['product','competitor']){const o=document.createElement('option');o.value=o.textContent=p.product;$(k).append(o);}}if(d.products.length>1)$('competitor').selectedIndex=1;root.append(t);}
+$('file').onchange=()=>action(async()=>{const file=$('file').files[0];if(file){if(file.size>800000)throw Error('File exceeds 800 KB');$('records').value=await file.text();}});
+$('import').onsubmit=e=>{e.preventDefault();action(async()=>{const s=$('records').value.trim();const a=s.startsWith('[')?{reviews:JSON.parse(s)}:{csv:s};show(await call('import_reviews',a));await refresh();});};
+$('sample').onsubmit=e=>{e.preventDefault();action(async()=>show(await call('summarize_sentiment',filters())));};
+$('evidence').onclick=()=>action(async()=>show(await call('list_reviews',filters())));
+$('compare').onclick=()=>action(async()=>{const a=filters();delete a.product;a.products=[$('product').value,$('competitor').value];show(await call('compare_products',a));});
+$('periods').onsubmit=e=>{e.preventDefault();action(async()=>{const a={product:$('product').value};for(const k of ['before_from','before_to','after_from','after_to'])a[k]=$(k.replace('_','-')).value;if($('source').value)a.source=$('source').value;show(await call('compare_periods',a));});};
+$('refresh').onclick=()=>action(refresh);$('export').onclick=()=>{if(!report)return;const url=URL.createObjectURL(new Blob([JSON.stringify(report,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='review-evidence.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+action(refresh);

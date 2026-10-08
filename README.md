@@ -1,42 +1,92 @@
 # MCP Review Intelligence
 
-A design brief for an MCP service that turns product reviews into traceable themes, sentiment summaries and comparison evidence.
+A working, local-first review evidence product with CSV/JSON import, SQLite storage, deduplication, deterministic sentiment, traceable aspect themes, product/period comparisons, MCP tools and a browser workspace.
 
-**Status: concept stage.** This repository currently contains only this README. Review collection, sentiment analysis, MCP tools, storage and client integration have not been implemented.
+## Run the product
 
-## Intended value
+Python 3.11+; no third-party packages, model API keys or scraper subscription required.
 
-Help an assistant answer questions such as “What problems recur in recent reviews?” with source-linked evidence rather than an unsupported opinion. A summary should retain review identifiers, source URLs, dates, sample size and representative excerpts.
+```bash
+python server.py --web --demo
+```
 
-## Proposed capabilities
+Open **http://127.0.0.1:8766**. Import reviews, choose a product and sample window, inspect sentiment and exact source excerpts, compare products or nonoverlapping time periods, then download the report. Demo records in `examples/reviews.json` are explicitly synthetic.
 
-| Capability | Intended output | Evidence requirement |
-| --- | --- | --- |
-| Collect reviews | Normalized review records | Source, capture date and stable identifier |
-| Summarize sentiment | Distribution for a defined sample | Method, sample size and uncertainty |
-| Identify themes | Recurring product issues and benefits | Traceable supporting reviews |
-| Compare periods | Changes in observed themes | Comparable sources and date windows |
-| Compare products | Side-by-side review findings | Disclosed differences in coverage |
+For MCP stdio:
 
-These are design goals, not callable tools. A future tool contract should define pagination, filtering, structured errors and the distinction between a source rating and an inferred sentiment label.
+```bash
+python server.py --db data/reviews.sqlite
+```
 
-## First implementation milestones
+Supports MCP **2025-11-25** initialization, ping, tools/list and tools/call over newline-delimited stdin/stdout JSON-RPC. The browser API is a separate localhost companion, not an advertised MCP HTTP transport.
 
-1. Support a permitted import format or one source adapter, with a documented review schema.
-2. Deduplicate reviews and preserve provenance.
-3. Establish a deterministic analysis baseline before adding optional model-assisted summaries.
-4. Return exact evidence alongside every theme.
-5. Expose validated MCP tools and test them with a real client.
-6. Evaluate on labeled fixtures, including mixed sentiment, sarcasm, duplicate reviews and sparse data.
+## MCP client configuration
 
-## Analysis boundaries
+```json
+{
+  "mcpServers": {
+    "review-intelligence": {
+      "command": "python",
+      "args": ["/absolute/path/mcp-review-intelligence/server.py", "--db", "/absolute/path/mcp-review-intelligence/data/reviews.sqlite"]
+    }
+  }
+}
+```
 
-Reviews are a selected sample, not a census of customers. A high count of negative reviews does not establish population dissatisfaction or product causality. Do not invent quotes, infer a reviewer's personal traits, or hide differences in language, source or time coverage.
+Use real absolute paths and your Python 3.11+ executable.
 
-## Getting started
+| Tool | Behavior |
+|---|---|
+| `import_reviews` | Atomic CSV/JSON import with schema validation and stable-ID/content deduplication |
+| `list_products` | Product inventory with review and source counts |
+| `list_reviews` | Paginated, date/source/language-filtered evidence |
+| `summarize_sentiment` | Defined-sample sentiment distribution, separate source ratings, aspect themes and supporting excerpts |
+| `compare_products` | Side-by-side evidence and coverage disclosures; no arbitrary winner |
+| `compare_periods` | Descriptive negative-share change across nonoverlapping windows with source evidence |
 
-No package installation or server command is available yet. Publish startup and client configuration instructions only when the corresponding server and tests exist.
+## Import contract
 
-## Contributions and license
+```json
+{
+  "reviews": [{
+    "id": "review-123",
+    "product": "Headphones A",
+    "source": "permitted-export",
+    "url": "https://example.com/reviews/123",
+    "published_at": "2026-01-01",
+    "text": "Great sound, but difficult setup.",
+    "rating": 4,
+    "language": "en"
+  }]
+}
+```
 
-Start with the normalized schema, fixture dataset or analysis baseline. No license file is currently included; choose an explicit license before distributing implementation code or third-party review data.
+Required: id, product, source, url, published_at, text. Optional: captured_at (defaults to import time), rating (1–5), language (en/other, defaults to en). CSV uses the same headers and standard quoted fields; supply it as `{ "csv": "..." }`. Supply either CSV or reviews, not both. Imports are limited to 1,000 rows and transport messages to 1 MB. Use successive imports for larger datasets.
+
+Dates accept YYYY-MM-DD or timezone-qualified ISO datetimes. A date-only `to` filter includes the complete day. Publication after capture and future timestamps are rejected. Repeated stable IDs and identical normalized text within one product/source are deduplicated. Conflicting text for an existing ID rejects the entire import rather than silently overwriting evidence. Distinct sources retain their provenance.
+
+## Analysis and limits
+
+- English positive/negative lexicons with local negation handling; mixed reviews remain mixed.
+- Explicit unscored label for unsupported languages.
+- Six aspect dictionaries: reliability, performance, usability, value, support and quality.
+- Exact excerpts, IDs, source URLs and publication timestamps behind every theme.
+- Empty/sparse-sample indicators and source/language/date coverage.
+- Theme evidence capped at 20 excerpts per aspect; retrieve complete records through paginated `list_reviews`.
+- Source ratings are separate from text sentiment. No invented quotes, causality claims or inferred personal traits.
+
+The lexical baseline does not reliably detect sarcasm, contextual meaning, or aspect-specific polarity. Sentiment from reviewers is a selected sample, not a population estimate. Period comparisons are descriptive, not significance tests. There is no automatic external scraping; import permitted exports with their original source links.
+
+## Verification
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+Tests exercise mixed/negated/unsupported-language sentiment, exact evidence, rating separation, CSV quoting and malformed rows, deduplication, atomic conflict rollback, date filters, pagination, sparse/empty samples, comparisons, persistence and a subprocess MCP client. Web integration tests check the browser and API, size limits and host/origin rejection.
+
+`engine.py` owns schema and analysis. `core.py` owns protocol/localhost transport. `web/` provides the browser workflow without remote scripts or analytics. SQLite data stays local; the server binds to 127.0.0.1 and rejects foreign Host/Origin headers. This is a local product, not a public multi-tenant service. Integration tests use the included protocol client; universal host certification is not claimed.
+
+Protocol reference: https://modelcontextprotocol.io/specification/2025-11-25/basic/transports
+
+MIT licensed. Example reviews are synthetic, not copied from customers.

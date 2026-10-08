@@ -1,0 +1,6 @@
+[
+ {"id":"demo-1","product":"Demo Headphones A","source":"synthetic","url":"https://example.com/reviews/demo-1","published_at":"2026-01-01","text":"Great sound and comfortable fit, but difficult setup.","rating":4},
+ {"id":"demo-2","product":"Demo Headphones A","source":"synthetic","url":"https://example.com/reviews/demo-2","published_at":"2026-01-03","text":"The interface is slow and crashes. Support was helpful.","rating":2},
+ {"id":"demo-3","product":"Demo Headphones A","source":"synthetic","url":"https://example.com/reviews/demo-3","published_at":"2026-02-01","text":"Setup is easy now. Fast response and reliable performance.","rating":5},
+ {"id":"demo-4","product":"Demo Headphones B","source":"synthetic","url":"https://example.com/reviews/demo-4","published_at":"2026-02-02","text":"Excellent quality but expensive price.","rating":4}
+]
